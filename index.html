@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Angel & Vampire Runners</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Playfair+Display:ital,wght@0,400;1,700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; touch-action: none; }
+        body, html { background-color: #000; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Playfair Display', serif; }
+        
+        #game-container { position: relative; width: 100%; height: 100%; }
+        canvas { display: block; width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+
+        /* UI Placar */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; display: flex; flex-direction: column; }
+        #score-board { position: absolute; top: 5vmin; right: 5vmin; text-align: right; color: #fff; font-size: clamp(1rem, 4vmin, 1.8rem); font-weight: bold; text-shadow: 2px 2px 5px #000; letter-spacing: 2px; font-family: 'Cinzel', serif; }
+        .instruction { flex: 1; display: flex; justify-content: center; align-items: center; color: #fff; opacity: 0.2; font-size: clamp(1rem, 4vmin, 1.5rem); font-style: italic; letter-spacing: 3px; transition: opacity 0.8s; text-shadow: 0 0 10px #000; }
+        .game-active .instruction { opacity: 0 !important; }
+
+        /* Controles de Toque */
+        #touch-zones { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20; display: flex; flex-direction: column; }
+        .touch-half { flex: 1; width: 100%; cursor: pointer; }
+
+        /* Telas Overlay */
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, rgba(15,5,15,0.95) 0%, rgba(0,0,0,0.99) 100%); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 30; color: white; transition: opacity 0.5s; }
+        .overlay h1 { font-family: 'Cinzel', serif; color: #b30000; font-size: clamp(2rem, 6vmin, 3.5rem); margin-bottom: 10px; text-transform: uppercase; text-shadow: 0 0 20px rgba(179, 0, 0, 0.8), 2px 2px 0px #000; letter-spacing: 4px; text-align: center; }
+        .overlay p { color: #8a7a8a; margin-bottom: 30px; font-size: clamp(0.9rem, 3vmin, 1.2rem); text-align: center; padding: 0 20px; font-style: italic; }
+        
+        button { font-family: 'Cinzel', serif; padding: 15px 40px; font-size: clamp(1rem, 3vmin, 1.2rem); font-weight: bold; color: #b30000; background: transparent; border: 1px solid #b30000; cursor: pointer; box-shadow: inset 0 0 10px rgba(179,0,0,0.1), 0 0 15px rgba(179,0,0,0.2); text-transform: uppercase; letter-spacing: 2px; transition: all 0.2s; }
+        button:active, button:hover { transform: scale(0.95); background: rgba(179, 0, 0, 0.15); box-shadow: inset 0 0 20px rgba(179,0,0,0.4), 0 0 25px rgba(179,0,0,0.5); color: #ff4d4d; }
+        .hidden { display: none !important; }
+
+        /* Efeito de flash na tela ao trocar tema */
+        #flash { position: absolute; top:0; left:0; width:100%; height:100%; background: white; z-index: 15; opacity: 0; pointer-events: none; transition: opacity 0.5s; }
+        .flash-active { opacity: 0.8 !important; }
+
+        /* Tela Inicial Dualidade Gamer Redesenhada */
+        .duality-box { display: flex; width: 85%; max-width: 500px; height: 160px; border: 2px solid #555; margin-bottom: 25px; border-radius: 12px; overflow: hidden; box-shadow: 0 0 25px rgba(0,0,0,0.9); }
+        .side-dark { flex: 1; background: linear-gradient(135deg, #300000, #0a0008); display: flex; flex-direction: column; align-items: center; justify-content: center; border-right: 1px solid #555; position: relative; }
+        .side-angel { flex: 1; background: linear-gradient(135deg, #001e3b, #00101f); display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
+        
+        /* Novos Avatares Estilizados */
+        .avatar-vamp { width: 50px; height: 80px; background: #1a0000; border-top: 8px solid #ffcccc; position: relative; border-radius: 4px; box-shadow: 0 0 15px rgba(255,0,0,0.6); }
+        .avatar-vamp::before { content: ''; position: absolute; top: 12px; left: 14px; width: 5px; height: 5px; background: red; box-shadow: 12px 0 0 red; border-radius: 50%; }
+        .avatar-vamp::after { content: ''; position: absolute; top: 0; left: -12px; width: 74px; height: 20px; background: #2a0000; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+
+        .avatar-angel { width: 50px; height: 80px; background: #ffffff; border-top: 8px solid #ffe0bd; position: relative; border-radius: 4px; box-shadow: 0 0 20px rgba(255,215,0,0.8); }
+        .avatar-angel::before { content: ''; position: absolute; top: -14px; left: 12px; width: 26px; height: 8px; border: 2px solid #ffd700; border-radius: 50%; }
+        .avatar-angel::after { content: ''; position: absolute; top: 12px; left: 16px; width: 4px; height: 4px; background: #0088ff; box-shadow: 14px 0 0 #0088ff; border-radius: 50%; }
+
+        .side-label { margin-top: 12px; font-family: 'Cinzel', serif; font-size: 0.85rem; letter-spacing: 2px; text-transform: uppercase; }
+        .side-dark .side-label { color: #ff4d4d; }
+        .side-angel .side-label { color: #70d6ff; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        <div id="flash"></div>
+
+        <div id="ui-layer">
+            <div id="score-board">
+                <div id="hi-score" style="color: #ccc; font-size: 0.8em; margin-bottom: 5px;">HI 00000000</div>
+                <div id="current-score">00000000</div>
+            </div>
+            <div class="instruction">Toque para Pular (Duplo no Ar)</div>
+            <div class="instruction">Mantenha para Abaixar</div>
+        </div>
+
+        <div id="touch-zones">
+            <div id="zone-top" class="touch-half"></div>
+            <div id="zone-bottom" class="touch-half"></div>
+        </div>
+
+        <div id="start-screen" class="overlay">
+            <h1>Angel & Vampire Runners</h1>
+            <p>O eterno combate entre a Luz e as Trevas.</p>
+            
+            <div class="duality-box">
+                <div class="side-dark">
+                    <div class="avatar-vamp"></div>
+                    <span class="side-label">Trevas</span>
+                </div>
+                <div class="side-angel">
+                    <div class="avatar-angel"></div>
+                    <span class="side-label">Luz</span>
+                </div>
+            </div>
+
+            <button id="start-btn">Iniciar Batalha</button>
+        </div>
+
+        <div id="game-over-screen" class="overlay hidden">
+            <h1 id="victory-announcement">VENCEDORES</h1>
+            <p id="final-score">Pontos: 0</p>
+            <button id="restart-btn" style="opacity: 0.5; cursor: not-allowed;" disabled>Ressuscitar</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('current-score');
+        const hiScoreEl = document.getElementById('hi-score');
+        const uiLayer = document.getElementById('ui-layer');
+        const flashEl = document.getElementById('flash');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const victoryAnnouncement = document.getElementById('victory-announcement');
+
+        // Escala Lógica Gigante (Zoom Out)
+        const CH = 1400; 
+        let CW = 800; 
+        let groundLevel = Math.floor(CH * 0.85);
+
+        function resizeCanvas() {
+            CW = Math.floor(CH * (window.innerWidth / window.innerHeight));
+            canvas.width = CW;
+            canvas.height = CH;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // ESTADOS E TEMAS
+        let gameState = 'START';
+        let isPlaying = false;
+        let score = 0;
+        let hiScore = localStorage.getItem('vampireRun_Dual_HI') || 0;
+        let frameCount = 0;
+        let baseGameSpeed = 10;
+        let obstacles = [];
+        let animationId;
+        let spawnTimer = 0;
+
+        // Controle de Tema Aleatório
+        let currentTheme = 'DARK'; // 'DARK' ou 'ANGELICAL'
+        let themeTimer = 1000; 
+        let themeTransitionPause = 0; // Pausa após mudar tema
+
+        // Partículas/Fundo
+        const stars = Array.from({length: 200}, () => ({ x: Math.random(), y: Math.random() * 0.6 }));
+        const clouds = Array.from({length: 10}, () => ({ x: Math.random(), y: Math.random() * 0.4, s: Math.random() + 0.5 }));
+
+        // --- SISTEMA DE ÁUDIO MANUAL (SEM TRANSPORT) ---
+        let audioCtxReady = false;
+        let synthDarkArp, synthDarkBass, synthAngelArp, synthAngelBass, sfxSynth;
+        
+        let nextNoteTime = 0;
+        let currentNoteIdx = 0;
+
+        const arpNotesDark = ["D3", "F3", "A3", "G3", "Bb3", "A3", "F3", "E3", "D4", "A3", "F3", "D3"];
+        const bassNotesDark = ["D2", "D2", "Bb1", "A1"];
+
+        const arpNotesAngel = ["C4", "E4", "G4", "C5", "G4", "E4"];
+        const bassNotesAngel = ["C2", "G2", "F2", "G2"];
+
+        async function initAudio() {
+            if (audioCtxReady) return;
+            await Tone.start();
+
+            synthDarkArp = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 } }).toDestination();
+            synthDarkArp.volume.value = -12;
+            synthDarkBass = new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 4 }).toDestination();
+            synthDarkBass.volume.value = -6;
+
+            synthAngelArp = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "triangle" }, envelope: { attack: 0.1, decay: 0.3, sustain: 0.2, release: 1 } }).toDestination();
+            synthAngelArp.volume.value = -10;
+            synthAngelBass = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
+            synthAngelBass.volume.value = -8;
+
+            sfxSynth = new Tone.PolySynth(Tone.Synth).toDestination();
+            sfxSynth.volume.value = -5;
+
+            audioCtxReady = true;
+        }
+
+        function updateAudioSequencer() {
+            if (!audioCtxReady || gameState !== 'PLAYING') return;
+            let now = Tone.now();
+            
+            if (nextNoteTime < now) nextNoteTime = now + 0.05;
+
+            while (nextNoteTime < now + 0.1) {
+                if (currentTheme === 'DARK') {
+                    let note = arpNotesDark[currentNoteIdx % arpNotesDark.length];
+                    synthDarkArp.triggerAttackRelease(note, "16n", nextNoteTime);
+                    
+                    if (currentNoteIdx % 4 === 0) {
+                        let bass = bassNotesDark[Math.floor(currentNoteIdx / 4) % bassNotesDark.length];
+                        synthDarkBass.triggerAttackRelease(bass, "8n", nextNoteTime);
+                    }
+                    nextNoteTime += 0.13;
+                } else {
+                    let note = arpNotesAngel[currentNoteIdx % arpNotesAngel.length];
+                    synthAngelArp.triggerAttackRelease(note, "4n", nextNoteTime);
+                    
+                    if (currentNoteIdx % 2 === 0) {
+                        let bass = bassNotesAngel[Math.floor(currentNoteIdx / 2) % bassNotesAngel.length];
+                        synthAngelBass.triggerAttackRelease(bass, "2n", nextNoteTime);
+                    }
+                    nextNoteTime += 0.35;
+                }
+                currentNoteIdx++;
+            }
+        }
+
+        function playSFX(type) {
+            if (!audioCtxReady) return;
+            if (type === 'jump') sfxSynth.triggerAttackRelease("E4", "16n");
+            if (type === 'doubleJump') sfxSynth.triggerAttackRelease("G4", "16n");
+            if (type === 'duck') sfxSynth.triggerAttackRelease("A2", "16n");
+            if (type === 'death') sfxSynth.triggerAttackRelease(["C2", "D#2", "F#2"], "1n");
+            if (type === 'switch') sfxSynth.triggerAttackRelease(["C4", "G4", "C5"], "4n");
+        }
+
+        // --- ENTIDADES ---
+        const player = {
+            x: CW * 0.1, y: groundLevel, w: 45, h: 110, duckH: 50,
+            dy: 0, gravity: 1.4, jumpForce: 28,
+            isJumping: false, isDucking: false,
+            jumpsLeft: 2, // Suporte a Pulo Duplo
+
+            jump() {
+                if (this.jumpsLeft > 0 && !this.isDucking && gameState === 'PLAYING') {
+                    this.isJumping = true;
+                    this.dy = -this.jumpForce;
+                    if (this.jumpsLeft === 2) {
+                        playSFX('jump');
+                    } else {
+                        playSFX('doubleJump'); // Som diferenciado para o pulo duplo
+                    }
+                    this.jumpsLeft--;
+                }
+            },
+            duck(state) {
+                if (!this.isJumping && gameState === 'PLAYING') {
+                    if (state && !this.isDucking) playSFX('duck');
+                    this.isDucking = state;
+                }
+            },
+            update() {
+                if (this.isJumping) {
+                    this.dy += this.gravity;
+                    this.y += this.dy;
+                    if (this.y >= groundLevel) {
+                        this.y = groundLevel;
+                        this.isJumping = false;
+                        this.dy = 0;
+                        this.jumpsLeft = 2; // Reseta pulo duplo ao tocar o chão
+                    }
+                }
+            },
+            draw() {
+                let currentH = this.isDucking ? this.duckH : this.h;
+                let currentY = this.y - currentH;
+                let flap = Math.sin(frameCount * 0.5) * 20;
+
+                if (currentTheme === 'DARK') {
+                    if (this.isDucking) {
+                        // MORCEGO
+                        ctx.fillStyle = '#0f111a';
+                        ctx.beginPath(); ctx.ellipse(this.x + this.w/2, currentY + this.duckH/2, 25, 15, 0, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = '#171926';
+                        ctx.beginPath(); ctx.moveTo(this.x + this.w/2, currentY + this.duckH/2); ctx.lineTo(this.x - 25, currentY + flap); ctx.lineTo(this.x, currentY + this.duckH); ctx.fill();
+                        ctx.beginPath(); ctx.moveTo(this.x + this.w/2, currentY + this.duckH/2); ctx.lineTo(this.x + this.w + 25, currentY + flap); ctx.lineTo(this.x + this.w, currentY + this.duckH); ctx.fill();
+                        ctx.fillStyle = '#ff0000';
+                        ctx.fillRect(this.x + this.w/2 - 8, currentY + 15, 4, 4); ctx.fillRect(this.x + this.w/2 + 4, currentY + 15, 4, 4);
+                    } else {
+                        // VAMPIRO
+                        ctx.fillStyle = '#3a0000';
+                        let cape = Math.sin(frameCount * 0.3) * 12;
+                        ctx.beginPath(); ctx.moveTo(this.x + this.w/2, currentY + 15); ctx.lineTo(this.x - 20 - cape, this.y); ctx.lineTo(this.x + this.w, this.y); ctx.fill();
+                        ctx.fillStyle = '#111';
+                        ctx.fillRect(this.x, currentY + 25, this.w, this.h - 25);
+                        ctx.fillStyle = '#e0d0e0';
+                        ctx.fillRect(this.x + 8, currentY, 28, 25);
+                        ctx.fillStyle = '#ff0000';
+                        ctx.fillRect(this.x + 14, currentY + 12, 4, 4); ctx.fillRect(this.x + 26, currentY + 12, 4, 4);
+                    }
+                } else {
+                    if (this.isDucking) {
+                        // POMBO BRANCO
+                        ctx.fillStyle = '#ffffff';
+                        ctx.beginPath(); ctx.ellipse(this.x + this.w/2, currentY + this.duckH/2, 25, 12, 0, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = '#f0f0f0';
+                        ctx.beginPath(); ctx.moveTo(this.x + this.w/2, currentY + this.duckH/2); ctx.lineTo(this.x - 20, currentY - 10 + flap); ctx.lineTo(this.x, currentY + this.duckH/2); ctx.fill();
+                        ctx.beginPath(); ctx.moveTo(this.x + this.w/2, currentY + this.duckH/2); ctx.lineTo(this.x + this.w + 20, currentY - 10 + flap); ctx.lineTo(this.x + this.w, currentY + this.duckH/2); ctx.fill();
+                        ctx.fillStyle = '#000';
+                        ctx.fillRect(this.x + this.w/2 + 10, currentY + 10, 3, 3);
+                    } else {
+                        // ANJO
+                        ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 3;
+                        ctx.beginPath(); ctx.ellipse(this.x + this.w/2, currentY - 10, 15, 5, 0, 0, Math.PI*2); ctx.stroke();
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(this.x, currentY + 25, this.w, this.h - 25);
+                        ctx.fillStyle = '#ffe0bd';
+                        ctx.fillRect(this.x + 8, currentY, 28, 25);
+                        ctx.fillStyle = '#00aaff';
+                        ctx.fillRect(this.x + 14, currentY + 12, 4, 4); ctx.fillRect(this.x + 26, currentY + 12, 4, 4);
+                        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                        ctx.beginPath(); ctx.ellipse(this.x - 5, currentY + 50, 15, 30, -Math.PI/6, 0, Math.PI*2); ctx.fill();
+                    }
+                }
+            },
+            getHitbox() {
+                let margin = 10;
+                if (this.isDucking) return { x: this.x, y: this.y - this.duckH, w: this.w, h: this.duckH };
+                return { x: this.x + margin, y: this.y - this.h + margin, w: this.w - margin*2, h: this.h - margin };
+            }
+        };
+
+        class Obstacle {
+            constructor(type, speedOffset) {
+                this.x = CW + 100;
+                this.type = type; 
+                this.speedOffset = speedOffset;
+                this.markedForDeletion = false;
+                
+                if (type === 0 || type === 1) { // Chão
+                    this.w = type === 0 ? 30 : 80;
+                    this.h = 60 + Math.random() * 40; 
+                    this.y = groundLevel;
+                } else { // Ar
+                    this.w = 40; this.h = 40;
+                    this.y = type === 2 ? groundLevel - 40 : groundLevel - 130; 
+                }
+            }
+            update(speed) {
+                this.x -= (speed + this.speedOffset);
+                if (this.x + this.w < -100) this.markedForDeletion = true;
+            }
+            draw() {
+                ctx.save();
+                if (this.type === 0 || this.type === 1) { 
+                    if (currentTheme === 'DARK') {
+                        // Cruzes Brancas Brilhantes
+                        ctx.fillStyle = '#FFFFFF'; ctx.shadowColor = '#FFFFFF'; ctx.shadowBlur = 15;
+                        ctx.fillRect(this.x + 10, this.y - this.h, 10, this.h);
+                        ctx.fillRect(this.x - 5, this.y - this.h + 20, 40, 10);
+                        if(this.type === 1) { 
+                            ctx.fillRect(this.x + 60, this.y - this.h + 10, 10, this.h - 10);
+                            ctx.fillRect(this.x + 45, this.y - this.h + 30, 40, 10);
+                        }
+                    } else {
+                        // Tridentes Vermelho Sangue Brilhantes
+                        ctx.fillStyle = '#ff1a1a'; ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 15;
+                        let cx = this.x + 10;
+                        ctx.fillRect(cx, this.y - this.h, 6, this.h);
+                        ctx.fillRect(cx - 12, this.y - this.h, 30, 4);
+                        ctx.fillRect(cx - 12, this.y - this.h - 15, 4, 15);
+                        ctx.fillRect(cx + 14, this.y - this.h - 15, 4, 15);
+                        ctx.fillRect(cx, this.y - this.h - 20, 6, 20);
+                        
+                        if(this.type === 1) { 
+                            let cx2 = this.x + 60;
+                            ctx.fillRect(cx2, this.y - this.h, 6, this.h);
+                            ctx.fillRect(cx2 - 12, this.y - this.h, 30, 4);
+                            ctx.fillRect(cx2 - 12, this.y - this.h - 15, 4, 15);
+                            ctx.fillRect(cx2 + 14, this.y - this.h - 15, 4, 15);
+                            ctx.fillRect(cx2, this.y - this.h - 20, 6, 20);
+                        }
+                    }
+                } else { 
+                    let wingY = Math.sin(frameCount * 0.6) * 15;
+                    if (currentTheme === 'DARK') {
+                        // Mini Anjos Brancos no Céu Noturno
+                        ctx.fillStyle = '#ffd700'; ctx.beginPath(); ctx.ellipse(this.x + this.w/2, this.y - this.h - 5, 12, 3, 0, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(this.x + this.w/2, this.y - this.h); ctx.lineTo(this.x, this.y); ctx.lineTo(this.x + this.w, this.y); ctx.fill();
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; 
+                        ctx.beginPath(); ctx.ellipse(this.x - 10, this.y - this.h/2 + wingY, 20, 8, Math.PI/4, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.ellipse(this.x + this.w + 10, this.y - this.h/2 + wingY, 20, 8, -Math.PI/4, 0, Math.PI*2); ctx.fill();
+                    } else {
+                        // Mini Morcegos Negros no Céu Diurno
+                        ctx.fillStyle = '#111';
+                        ctx.beginPath(); ctx.ellipse(this.x + this.w/2, this.y - this.h/2, 12, 8, 0, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.moveTo(this.x + this.w/2, this.y - this.h/2); ctx.lineTo(this.x - 15, this.y - this.h/2 + wingY); ctx.lineTo(this.x, this.y); ctx.fill();
+                        ctx.beginPath(); ctx.moveTo(this.x + this.w/2, this.y - this.h/2); ctx.lineTo(this.x + this.w + 15, this.y - this.h/2 + wingY); ctx.lineTo(this.x + this.w, this.y); ctx.fill();
+                    }
+                }
+                ctx.restore();
+            }
+            getHitbox() { let margin = 5; return { x: this.x + margin, y: this.y - this.h + margin, w: this.w - margin*2, h: this.h - margin*2 }; }
+        }
+
+        // --- GERAÇÃO E TEMAS ---
+        function handleSpawningAndThemes() {
+            if (frameCount % 600 === 0 && baseGameSpeed < 20) baseGameSpeed += 0.5;
+
+            // Troca de Tema Aleatória
+            themeTimer--;
+            if (themeTimer <= 0) {
+                currentTheme = currentTheme === 'DARK' ? 'ANGELICAL' : 'DARK';
+                themeTimer = Math.floor(Math.random() * 1200) + 600; // Intervalo totalmente aleatório (600 a 1800 frames)
+                
+                // Limpa obstáculos atuais da tela e aplica pausa de 2 segundos (120 frames)
+                obstacles = [];
+                themeTransitionPause = 120;
+                
+                flashEl.classList.add('flash-active');
+                setTimeout(() => flashEl.classList.remove('flash-active'), 500);
+                playSFX('switch');
+            }
+
+            // Gerencia pausa de transição de tema
+            if (themeTransitionPause > 0) {
+                themeTransitionPause--;
+                return;
+            }
+
+            // Spawn de Obstáculos (Alta Frequência Aleatória e Espaçamento Seguro)
+            spawnTimer--;
+            if (spawnTimer <= 0) {
+                let type = Math.floor(Math.random() * 4);
+                let speedMod = (Math.random() * 4) - 1.5; 
+                obstacles.push(new Obstacle(type, speedMod));
+
+                let roll = Math.random();
+                if (roll < 0.3) spawnTimer = 45 + Math.floor(Math.random() * 20); // Mínimo seguro para dar tempo de pulo duplo
+                else if (roll < 0.7) spawnTimer = 65 + Math.floor(Math.random() * 30);
+                else spawnTimer = 95 + Math.floor(Math.random() * 40);
+            }
+        }
+
+        // --- FUNDO ---
+        function drawBackground() {
+            if (currentTheme === 'DARK') {
+                let grad = ctx.createLinearGradient(0, 0, 0, CH);
+                grad.addColorStop(0, '#050510'); grad.addColorStop(0.6, '#150a15'); grad.addColorStop(1, '#000000');
+                ctx.fillStyle = grad; ctx.fillRect(0, 0, CW, CH);
+
+                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                stars.forEach(s => {
+                    let sx = (s.x * 3000 - (frameCount * 0.5)) % CW;
+                    if (sx < 0) sx += CW;
+                    ctx.fillRect(sx, s.y * CH, 3, 3);
+                });
+
+                ctx.fillStyle = '#dcdce6'; ctx.shadowBlur = 60; ctx.shadowColor = "#ff0044";
+                ctx.beginPath(); ctx.arc(CW * 0.85, CH * 0.3, 80, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0; 
+
+                ctx.fillStyle = '#080808'; ctx.fillRect(0, groundLevel, CW, CH - groundLevel);
+                ctx.strokeStyle = '#b30000'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(0, groundLevel); ctx.lineTo(CW, groundLevel); ctx.stroke();
+                
+                ctx.fillStyle = '#1a0505';
+                for(let i=0; i< (CW / 150); i++) {
+                    let px = ((frameCount * baseGameSpeed) + i * 150) % CW;
+                    ctx.fillRect(CW - px, groundLevel + 20 + (i%3)*20, 60, 5);
+                }
+            } else {
+                let grad = ctx.createLinearGradient(0, 0, 0, CH);
+                grad.addColorStop(0, '#87CEEB'); grad.addColorStop(0.8, '#E0F6FF');
+                ctx.fillStyle = grad; ctx.fillRect(0, 0, CW, CH);
+
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                clouds.forEach(c => {
+                    let cx = (c.x * 3000 - (frameCount * 1.5 * c.s)) % CW;
+                    if (cx < -100) cx += CW + 100;
+                    ctx.beginPath(); ctx.arc(cx, c.y * CH, 40 * c.s, 0, Math.PI*2);
+                    ctx.arc(cx + 30*c.s, c.y * CH - 10*c.s, 50 * c.s, 0, Math.PI*2);
+                    ctx.arc(cx + 60*c.s, c.y * CH, 40 * c.s, 0, Math.PI*2); ctx.fill();
+                });
+
+                ctx.fillStyle = '#FFD700'; ctx.shadowBlur = 50; ctx.shadowColor = "#FFD700";
+                ctx.beginPath(); ctx.arc(CW * 0.85, CH * 0.2, 70, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+
+                ctx.fillStyle = '#90EE90'; ctx.fillRect(0, groundLevel, CW, CH - groundLevel);
+                ctx.strokeStyle = '#32CD32'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(0, groundLevel); ctx.lineTo(CW, groundLevel); ctx.stroke();
+                
+                ctx.fillStyle = '#7CFC00';
+                for(let i=0; i< (CW / 150); i++) {
+                    let px = ((frameCount * baseGameSpeed) + i * 150) % CW;
+                    ctx.fillRect(CW - px, groundLevel + 15 + (i%3)*15, 40, 5);
+                }
+            }
+        }
+
+        function checkCollision(r1, r2) { return (r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y); }
+
+        function triggerGameOver() {
+            gameState = 'GAMEOVER'; isPlaying = false;
+            playSFX('death');
+            
+            if (score > hiScore) { hiScore = score; localStorage.setItem('vampireRun_Dual_HI', hiScore); }
+            
+            // Define quem venceu de acordo com o tema ativo no momento da morte
+            if (currentTheme === 'DARK') {
+                victoryAnnouncement.innerText = "OS ANJOS VENCERAM!";
+                victoryAnnouncement.style.color = "#ffd700";
+            } else {
+                victoryAnnouncement.innerText = "OS VAMPIROS VENCERAM!";
+                victoryAnnouncement.style.color = "#ff0044";
+            }
+
+            document.getElementById('final-score').innerText = `Pontos: ${Math.floor(score).toString().padStart(8, '0')}`;
+            uiLayer.classList.remove('game-active');
+            
+            const restartBtn = document.getElementById('restart-btn');
+            restartBtn.disabled = true; restartBtn.style.opacity = '0.5'; restartBtn.style.cursor = 'not-allowed'; restartBtn.innerText = 'Aguarde...';
+            gameOverScreen.classList.remove('hidden');
+
+            setTimeout(() => {
+                restartBtn.disabled = false; restartBtn.style.opacity = '1'; restartBtn.style.cursor = 'pointer'; restartBtn.innerText = 'Ressuscitar';
+            }, 1000); 
+        }
+
+        function gameLoop() {
+            if (gameState !== 'PLAYING') return; 
+            
+            ctx.clearRect(0, 0, CW, CH);
+            drawBackground();
+
+            player.update();
+            player.draw();
+
+            handleSpawningAndThemes();
+            updateAudioSequencer(); 
+            
+            let pBox = player.getHitbox();
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                obs.update(baseGameSpeed);
+                obs.draw();
+                if (checkCollision(pBox, obs.getHitbox())) { triggerGameOver(); return; }
+            }
+
+            obstacles = obstacles.filter(obs => !obs.markedForDeletion);
+            score += 10;
+            scoreEl.innerText = Math.floor(score).toString().padStart(8, '0');
+            frameCount++;
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        async function startGame() {
+            await initAudio();
+            gameState = 'PLAYING'; isPlaying = true;
+            document.getElementById('start-screen').classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            uiLayer.classList.add('game-active');
+            
+            hiScoreEl.innerText = `HI ${Math.floor(hiScore).toString().padStart(8, '0')}`;
+            score = 0; frameCount = 0; baseGameSpeed = 10; spawnTimer = 40; 
+            
+            // Define tema inicial de forma aleatória ao iniciar ou ressuscitar
+            currentTheme = Math.random() < 0.5 ? 'DARK' : 'ANGELICAL';
+            themeTimer = Math.floor(Math.random() * 1200) + 600;
+            themeTransitionPause = 0;
+
+            obstacles = []; player.y = groundLevel; player.dy = 0; player.isJumping = false; player.isDucking = false; player.jumpsLeft = 2;
+            
+            nextNoteTime = Tone.now() + 0.1;
+            currentNoteIdx = 0;
+
+            if(animationId) cancelAnimationFrame(animationId);
+            gameLoop();
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+
+        const zTop = document.getElementById('zone-top');
+        const zBot = document.getElementById('zone-bottom');
+        zTop.addEventListener('touchstart', (e) => { e.preventDefault(); player.jump(); });
+        zTop.addEventListener('mousedown', (e) => { e.preventDefault(); player.jump(); });
+        zBot.addEventListener('touchstart', (e) => { e.preventDefault(); player.duck(true); });
+        zBot.addEventListener('mousedown', (e) => { e.preventDefault(); player.duck(true); });
+        zBot.addEventListener('touchend', (e) => { e.preventDefault(); player.duck(false); });
+        zBot.addEventListener('mouseup', (e) => { e.preventDefault(); player.duck(false); });
+        zBot.addEventListener('mouseleave', () => player.duck(false));
+
+        window.addEventListener('keydown', (e) => {
+            if (gameState !== 'PLAYING') return;
+            if (e.code === 'Space' || e.code === 'ArrowUp') player.jump();
+            if (e.code === 'ArrowDown') player.duck(true);
+        });
+        window.addEventListener('keyup', (e) => { if (e.code === 'ArrowDown') player.duck(false); });
+
+        hiScoreEl.innerText = `HI ${Math.floor(hiScore).toString().padStart(8, '0')}`;
+    </script>
+</body>
+</html>
